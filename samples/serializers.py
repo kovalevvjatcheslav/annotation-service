@@ -32,7 +32,7 @@ class LabelSerializer(serializers.ModelSerializer):
 
 
 class SampleSerializer(serializers.ModelSerializer):
-    label = LabelSerializer()
+    label = LabelSerializer(required=False)
 
     class Meta:
         model = Sample
@@ -40,6 +40,8 @@ class SampleSerializer(serializers.ModelSerializer):
 
     @transaction.atomic
     def create(self, validated_data):
-        label = LabelSerializer().create(validated_data.get('label'))
-        validated_data.update({'label': label})
+        label_data = validated_data.get('label')
+        if label_data:
+            label = LabelSerializer().create(validated_data.get('label'))
+            validated_data.update({'label': label})
         return super().create(validated_data)
