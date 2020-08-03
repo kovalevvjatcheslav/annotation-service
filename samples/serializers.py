@@ -30,6 +30,16 @@ class LabelSerializer(serializers.ModelSerializer):
         validated_data.update({'label_meta': label_meta, 'shape': shape})
         return super().create(validated_data)
 
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        label_meta = validated_data.pop('label_meta', None)
+        if label_meta:
+            LabelMetaSerializer().update(instance.label_meta, label_meta)
+        shape = validated_data.pop('shape', None)
+        if shape:
+            ShapeSerializer().update(instance.shape, shape)
+        return super().update(instance, validated_data)
+
 
 class SampleSerializer(serializers.ModelSerializer):
     label = LabelSerializer(required=False)

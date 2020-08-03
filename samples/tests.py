@@ -1,6 +1,9 @@
 import shutil
+from io import BytesIO
 from collections import OrderedDict
 from django.test import TestCase, override_settings
+from django.test.client import encode_multipart
+from rest_framework.test import APIRequestFactory
 from samples.serializers import SampleSerializer, LabelSerializer
 from samples.models import Sample, Label
 import json
@@ -13,10 +16,17 @@ class DummyValue:
 
 @override_settings(MEDIA_ROOT='test/media/')
 class APITestCase(TestCase):
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.maxDiff = None
+
+    def setUp(self):
+        self.shape = {'start_x': 10.0, 'start_y': 20.0, 'end_x': 30.0, 'end_y': 40.0}
+        self.label_meta = {'confirmed': False, 'confidence_percent': 0.9}
+        self.image_name = 'test_image.jpeg'
+        super().setUpClass()
 
     @classmethod
     def tearDownClass(cls):
@@ -27,27 +37,23 @@ class APITestCase(TestCase):
             print(ex)
 
     def test_create_sample_with_label(self):
-        image_name = 'test_image.jpeg'
-        label_meta = {'confirmed': False, 'confidence_percent': 0.9}
-        shape = {'start_x': 10.0, 'start_y': 20.0, 'end_x': 30.0, 'end_y': 40.0}
-        label = {'label_meta': label_meta, 'shape': shape, 'class_id': 'tooth', 'surface': 'BOL'}
-        with open(f'samples/test_data/{image_name}', 'rb') as image:
+        label = {'label_meta': self.label_meta, 'shape': self.shape, 'class_id': 'tooth', 'surface': 'BOL'}
+        with open(f'samples/test_data/{self.image_name}', 'rb') as image:
             resp = self.client.post('/api/sample/', data={'image': image, 'label': json.dumps(label)})
         self.assertEqual(resp.status_code, 200)
-        label_meta.update({'id': DummyValue()})
-        shape.update({'id': DummyValue()})
+        self.label_meta.update({'id': DummyValue()})
+        self.shape.update({'id': DummyValue()})
         label.update({'id': DummyValue()})
-        serialized_sample = {'id': DummyValue(), 'label': label, 'image_name': image_name}
+        serialized_sample = {'id': DummyValue(), 'label': label, 'image_name': self.image_name}
         sample = Sample.objects.all()[0]
         self.assertEqual(serialized_sample, self.__ordered_dict_to_dict(dict(SampleSerializer(sample).data)))
 
     def test_create_sample_without_label(self):
-        image_name = 'test_image.jpeg'
-        with open(f'samples/test_data/{image_name}', 'rb') as image:
+        with open(f'samples/test_data/{self.image_name}', 'rb') as image:
             resp = self.client.post('/api/sample/', data={'image': image})
         self.assertEqual(resp.status_code, 200)
         sample = Sample.objects.all()[0]
-        serialized_sample = {'id': DummyValue(), 'label': None, 'image_name': image_name}
+        serialized_sample = {'id': DummyValue(), 'label': None, 'image_name': self.image_name}
         self.assertEqual(serialized_sample, dict(SampleSerializer(sample).data))
 
     def test_create_sample_empty_query(self):
@@ -74,26 +80,20 @@ class APITestCase(TestCase):
         self.assertEqual(expected_data, json.loads(resp.content))
 
     def test_get_internal_label(self):
-        image_name = 'test_image.jpeg'
-        label_meta = {'confirmed': False, 'confidence_percent': 0.9}
-        shape = {'start_x': 10.0, 'start_y': 20.0, 'end_x': 30.0, 'end_y': 40.0}
-        label_data = {'label_meta': label_meta, 'shape': shape, 'class_id': 'tooth', 'surface': 'BOL'}
-        sample_serializer = SampleSerializer(data={'label': label_data, 'image_name': image_name})
+        label_data = {'label_meta': self.label_meta, 'shape': self.shape, 'class_id': 'tooth', 'surface': 'BOL'}
+        sample_serializer = SampleSerializer(data={'label': label_data, 'image_name': self.image_name})
         sample_serializer.is_valid()
         sample = sample_serializer.save()
         resp = self.client.get(f'/api/label/{sample.id}/', data={'format': 'internal'})
         self.assertEqual(resp.status_code, 200)
-        label_meta.update({'id': DummyValue()})
-        shape.update({'id': DummyValue()})
+        self.label_meta.update({'id': DummyValue()})
+        self.shape.update({'id': DummyValue()})
         label_data.update({'id': DummyValue()})
         self.assertEqual(label_data, json.loads(resp.content))
 
     def test_get_export_label(self):
-        image_name = 'test_image.jpeg'
-        label_meta = {'confirmed': False, 'confidence_percent': 0.9}
-        shape = {'start_x': 10.0, 'start_y': 20.0, 'end_x': 30.0, 'end_y': 40.0}
-        label_data = {'label_meta': label_meta, 'shape': shape, 'class_id': 'tooth', 'surface': 'BOL'}
-        sample_serializer = SampleSerializer(data={'label': label_data, 'image_name': image_name})
+        label_data = {'label_meta': self.label_meta, 'shape': self.shape, 'class_id': 'tooth', 'surface': 'BOL'}
+        sample_serializer = SampleSerializer(data={'label': label_data, 'image_name': self.image_name})
         sample_serializer.is_valid()
         sample = sample_serializer.save()
         resp = self.client.get(f'/api/label/{sample.id}/', data={'format': 'export'})
@@ -104,11 +104,8 @@ class APITestCase(TestCase):
         self.assertEqual(label_data, json.loads(resp.content))
 
     def test_get_label(self):
-        image_name = 'test_image.jpeg'
-        label_meta = {'confirmed': False, 'confidence_percent': 0.9}
-        shape = {'start_x': 10.0, 'start_y': 20.0, 'end_x': 30.0, 'end_y': 40.0}
-        label_data = {'label_meta': label_meta, 'shape': shape, 'class_id': 'tooth', 'surface': 'BOL'}
-        sample_serializer = SampleSerializer(data={'label': label_data, 'image_name': image_name})
+        label_data = {'label_meta': self.label_meta, 'shape': self.shape, 'class_id': 'tooth', 'surface': 'BOL'}
+        sample_serializer = SampleSerializer(data={'label': label_data, 'image_name': self.image_name})
         sample_serializer.is_valid()
         sample = sample_serializer.save()
         resp = self.client.get(f'/api/label/{sample.id}/')
@@ -119,15 +116,52 @@ class APITestCase(TestCase):
         self.assertEqual(label_data, json.loads(resp.content))
 
     def test_update_label(self):
-        image_name = 'test_image.jpeg'
-        label_meta = {'confirmed': False, 'confidence_percent': 0.9}
-        shape = {'start_x': 10.0, 'start_y': 20.0, 'end_x': 30.0, 'end_y': 40.0}
-        label_data = {'label_meta': label_meta, 'shape': shape, 'class_id': 'tooth', 'surface': 'BOL'}
-        sample_serializer = SampleSerializer(data={'label': label_data, 'image_name': image_name})
+        label_data = {'label_meta': self.label_meta, 'shape': self.shape, 'class_id': 'eye', 'surface': 'BOL'}
+        sample_serializer = SampleSerializer(data={'label': label_data, 'image_name': self.image_name})
         sample_serializer.is_valid()
         sample = sample_serializer.save()
-        sample_serializer.update()
+        label_data.update({'surface': 'BO'})
+        resp = self.client.put(f'/api/label/{sample.id}/',
+                               data=encode_multipart('BoUnDaRyStRiNg', {'label': json.dumps(label_data)}),
+                               content_type='multipart/form-data; boundary=BoUnDaRyStRiNg')
+        label_data.pop('label_meta')
+        label_data.pop('shape')
+        label_data.update({'id': DummyValue()})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(label_data, json.loads(resp.content))
 
+    def test_update_label_wrong_params(self):
+        label_data = {'label_meta': self.label_meta, 'shape': self.shape, 'class_id': 'eye', 'surface': 'BOL'}
+        sample_serializer = SampleSerializer(data={'label': label_data, 'image_name': self.image_name})
+        sample_serializer.is_valid()
+        sample = sample_serializer.save()
+        label_data.update({'class_id': None, 'surface': False})
+        resp = self.client.put(f'/api/label/{sample.id}/',
+                               data=encode_multipart('BoUnDaRyStRiNg', {'label': json.dumps(label_data)}),
+                               content_type='multipart/form-data; boundary=BoUnDaRyStRiNg')
+        label_data.pop('label_meta')
+        label_data.pop('shape')
+        label_data.update({'id': DummyValue()})
+        self.assertEqual(resp.status_code, 400)
+        expected_data = {'class_id': ['This field may not be null.'], 'surface': ['Not a valid string.']}
+        self.assertEqual(expected_data, json.loads(resp.content))
+
+    def test_get_image(self):
+        with open(f'samples/test_data/{self.image_name}', 'rb') as image:
+            self.client.post('/api/sample/', data={'image': image})
+        resp = self.client.get(f'/api/sample/{self.image_name}')
+        buffer = b''.join(resp.streaming_content)
+        self.assertEqual(resp.status_code, 200)
+        with open(f'samples/test_data/{self.image_name}', 'rb') as image:
+            self.assertEqual(buffer, image.read())
+
+    def test_get_nonexistent_image(self):
+        with open(f'samples/test_data/{self.image_name}', 'rb') as image:
+            self.client.post('/api/sample/', data={'image': image})
+        resp = self.client.get(f'/api/sample/wrong.jpg')
+        self.assertEqual(resp.status_code, 400)
+        expected_data = {'image_name': ['Does not exist.']}
+        self.assertEqual(expected_data, json.loads(resp.content))
 
     @classmethod
     def __ordered_dict_to_dict(cls, data):
