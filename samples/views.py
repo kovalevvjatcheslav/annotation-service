@@ -7,7 +7,7 @@ from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from samples.serializers import LabelSerializer, SampleSerializer
-from samples.models import Sample
+from samples.models import Sample, Label
 from samples.renderers import ExportRenderer, InternalRenderer
 
 
@@ -35,15 +35,19 @@ class LabelView(APIView):
     parser_classes = [MultiPartParser]
     renderer_classes = [ExportRenderer, InternalRenderer]
 
-    def get(self, request, sample_id, *args, **kwargs):
-        label = Sample.objects.get(id=sample_id).label
-        return Response(LabelSerializer(label).data)
+    def get(self, request, label_id=None, *args, **kwargs):
+        if label_id:
+            label = Label.objects.get(id=label_id)
+            label_serializer = LabelSerializer(label)
+        else:
+            label_serializer = LabelSerializer(Label.objects.all(), many=True)
+        return Response(label_serializer.data)
 
-    def put(self, request, sample_id, *args, **kwargs):
+    def put(self, request, label_id, *args, **kwargs):
         label_data = request.data.get('label')
         if label_data is None:
             return Response({'label': ['Must not be empty.']}, status=status.HTTP_400_BAD_REQUEST)
-        label = Sample.objects.get(id=sample_id).label
+        label = Label.objects.get(id=label_id)
         label_serializer = LabelSerializer(label, data=json.loads(label_data), partial=True)
         if not label_serializer.is_valid():
             return Response(label_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
