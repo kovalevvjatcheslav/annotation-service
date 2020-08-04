@@ -78,9 +78,9 @@ WSGI_APPLICATION = 'annotation_service.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'USER': 'db_user',
-        'NAME': 'service_db',
-        'HOST': 'localhost',
+        'USER': os.environ.get('POSTGRES_USER', 'db_user'),
+        'NAME': os.environ.get('POSTGRES_DB', 'service_db'),
+        'HOST': os.environ.get('DB_HOST', 'localhost'),
         'PORT': 5432,
     }
 }

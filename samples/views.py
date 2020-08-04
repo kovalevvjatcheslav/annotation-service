@@ -28,7 +28,7 @@ class SampleView(APIView):
         with transaction.atomic():
             sample = sample_serializer.save()
             default_storage.save(name=image.name, content=image)
-            return Response(sample.id)
+            return Response(sample.id, content_type='application/json')
 
 
 class LabelView(APIView):
@@ -41,7 +41,7 @@ class LabelView(APIView):
             label_serializer = LabelSerializer(label)
         else:
             label_serializer = LabelSerializer(Label.objects.all(), many=True)
-        return Response(label_serializer.data)
+        return Response(label_serializer.data, content_type='application/json')
 
     def put(self, request, label_id, *args, **kwargs):
         label_data = request.data.get('label')
@@ -53,7 +53,7 @@ class LabelView(APIView):
             return Response(label_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         with transaction.atomic():
             label_serializer.save()
-            return Response(label_serializer.data)
+            return Response(label_serializer.data, content_type='application/json')
 
 
 class ImageView(APIView):

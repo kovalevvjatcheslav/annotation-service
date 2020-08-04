@@ -1,0 +1,41 @@
+name: service pipeline
+
+on: [push]
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:12.3
+        env:
+          POSTGRES_DB: service_db
+          POSTGRES_USER: db_user
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+        - 5432:5432
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+    - uses: actions/checkout@master
+    - uses: actions/setup-python@v1
+      with:
+        python-version: '3.7'
+    - name: Install requirements
+      run: pip install -r requirements.txt
+    - name: Codestyle validation
+      run: |
+        pip install pycodestyle==2.6.0
+        pycodestyle --exclude=.git,.venv,__pycache__,migrations --max-line-length=120 --count $PWD
+    - name: Testing
+      env:
+        DROPBOX_TOKEN: ${{ secrets.DROPBOX_TOKEN }}
+        DB_HOST: localhost
+      run: |
+        pip install dropbox==10.3.0
+        python download_test_data.py
+        python manage.py test
+    - name: Build the Docker image
+      run: |
+        echo ${{ secrets.GITHUB_TOKEN }} | docker login docker.pkg.github.com -u kovalevvjatcheslav --password-stdin
+        docker build -f docker/Dockerfile --force-rm -t "docker.pkg.github.com/kovalevvjatcheslav/annotation-service/annotation-service:latest" .
+        docker push "docker.pkg.github.com/kovalevvjatcheslav/annotation-service/annotation-service:latest"
