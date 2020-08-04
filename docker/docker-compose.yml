@@ -6,7 +6,7 @@ services:
     env_file: .env
     restart: on-failure
   annotation-service:
-    image: annotation-service:0.1
+    image: docker.pkg.github.com/kovalevvjatcheslav/annotation-service/annotation-service:latest
     env_file: .env
     ports:
       - "8000:8000"
